@@ -37,4 +37,4 @@ function get_this_dir {
 
 get_this_dir
 
-${GITCONFIG} alias.yunobump "!bash -c '${THIS_DIR}/bump \$1' -"
+${GITCONFIG} alias.yunobump "!bash -c '${THIS_DIR}/yunobump \$1' -"
