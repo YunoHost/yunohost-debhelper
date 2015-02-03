@@ -92,12 +92,12 @@ function check_yunobump_uptodate {
   if [ "$LOCAL" = "$REMOTE" ]; then
       info "yuno-debhelper : Up-to-date"
   elif [ "$LOCAL" = "$BASE" ]; then
-      info "yuno-debhelper : Need to pull"
+      error "yuno-debhelper : Need to pull"
       # TODO : exit if we're here ?
   elif [ "$REMOTE" = "$BASE" ]; then
-      info "yuno-debhelper : Need to push"
+      error "yuno-debhelper : Need to push"
   else
-      info "yuno-debhelper : Diverged"
+      error "yuno-debhelper : Diverged"
   fi
   popd > /dev/null
 }
@@ -176,17 +176,27 @@ function check_version_validity {
 
 function update_changelog {
   info "Running git-dch"
-  git dch --new-version $NEW_VERSION --ignore-branch --release --distribution=test --force-distribution --urgency=low --git-author --spawn-editor=always
-  echo $?
+  git dch --new-version $NEW_VERSION --ignore-branch --release --distribution=test --force-distribution --urgency=low --git-author --spawn-editor=always --debian-tag="$BRANCH/%(version)s"
+  if [ "$?" != 0 ] ; then
+    error "Failed to update debian/changelog"
+    exit 1
+  fi
+
   info "Committing changelog"
   # TODO : ask confirmation before continuing ?
   git add debian/changelog
   git commit -m "Update changelog for $NEW_VERSION release"
-}
+  if [ "$?" != 0 ] ; then
+    error "Failed to commit debian/changelog"
+    exit 1
+  fi
 
-function tag_release {
-  info "Applying tag debian/$NEW_VERSION"
-  git tag debian/$NEW_VERSION
+  info "Applying tag $BRANCH/$NEW_VERSION"
+  git tag $BRANCH/$NEW_VERSION
+  if [ "$?" != 0 ] ; then
+    error "Failed to tag $NEW_VERSION"
+    exit 1
+  fi
 }
 
 function show_diff_to_push {
@@ -207,5 +217,4 @@ check_branch
 check_workingdir_uptodate
 check_version_validity
 update_changelog
-tag_release
 show_diff_to_push
