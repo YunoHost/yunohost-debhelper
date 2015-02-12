@@ -17,6 +17,8 @@
 #
 #==========================================================================*/
 
+export LC_ALL=C
+
 function get_this_dir {
   # inspired from http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in
   local SOURCE="${BASH_SOURCE[0]}"
