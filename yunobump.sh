@@ -97,13 +97,18 @@ function parse_args {
 function check_tools_availability {
   # TODO version checking ?
   
-  which git-dch > /dev/null || (error "You need to install git-dch (apt-get install git-buildpackage)"; exit 1)
+  which git-dch > /dev/null
+  if [ "$?" != 0 ] ; then
+    error "You need to install git-dch (apt-get install git-buildpackage)";
+    exit 1
+  fi
   info "Checking for git-dch... ok"
-  
-  python -c 'import apt' > /dev/null || (error "You need to install python-apt (apt-get install python-apt)"; exit 1)
-  info "Checking for python-apt... ok"
 
-  which dpkg-parsechangelog > /dev/null || (error "You need to install dpkg-parsechangelog (apt-get install dpkg-dev)" ; exit 1)
+  which dpkg-parsechangelog > /dev/null
+  if [ "$?" != 0 ] ; then
+    error "You need to install dpkg-parsechangelog (apt-get install dpkg-dev)";
+    exit 1
+  fi
   info "Checking for dpkg-parsechangelog... ok"
 }
 
@@ -206,11 +211,11 @@ function check_version_validity {
   info "Requesting bump to version $NEW_VERSION"
 
   # Check that requested new version > last version
-  if [ $(python -c "import apt,sys; print int(apt.VersionCompare('$LATEST_VERSION', '$NEW_VERSION') >= 0)") -ne "0" ]; then
+  if [ $(dpkg --compare-versions $LATEST_VERSION lt $NEW_VERSION > /dev/null 2>&1; echo $?) -ne "0" ]; then
     error "Requested new version ($NEW_VERSION) is less than or equal to current changelog version ($LATEST_VERSION)"
     exit 1
   fi
-  
+
   # Check that there is no existing tag with this version. 
   # Just in case as previous check should avoid it
   git tag | grep "^debian/$NEW_VERSION$"
