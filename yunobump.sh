@@ -33,7 +33,9 @@ function get_this_dir {
 }
 
 function usage {
-  echo "Usage : $0 <version>"
+  echo "Usage : $0 [-p] [-q] <version>"
+  echo "  -p : skips checking for yunobump updates"
+  echo "  -q : skips checking for remote updates"
   exit 1
 }
 
@@ -51,16 +53,43 @@ function error {
   echo -e "[${Red}error${ColorReset}] $1"
 }
 
-function check_args {
+function parse_args {
   local ARGV=("$@")
   local ARGC=("$#")
-
-  if [ "$ARGC" -ne 1 ]; then
-    error "Wrong number of arguments"
+  
+  if [ "$ARGC" -eq 0 ]; then
     usage
   fi
   
-  NEW_VERSION=$1
+  CHECK_YUNOBUMP_REMOTE=true
+  CHECK_CURRENT_REPO_REMOTE=true
+
+#  while getopts "pqh" OPTION ; do
+#    
+#    case $OPTION in
+#        p)
+#        echo "******* p"
+#            CHECK_YUNOBUMP_REMOTE=false
+#            ;;
+#        q)
+#        echo "******* q"
+#            CHECK_CURRENT_REPO_REMOTE=false
+#            ;;
+#        h)
+#            usage
+#            ;;
+#        :)
+#            echo "Option -$OPTARG requires an argument"
+#            exit 1
+#            ;;
+#        \?)
+#            echo "-$OPTARG: invalid option"
+#            exit 1
+#            ;;
+#    esac
+#  done
+  
+  NEW_VERSION="$@"
 }
 
 function check_tools_availability {
@@ -77,6 +106,12 @@ function check_tools_availability {
 }
 
 function check_yunobump_uptodate {
+  
+  if [ "$CHECK_YUNOBUMP_REMOTE" == "false" ]; then
+    info "Skipping check of $THIS_DIR clone for remote updates, because -p was used"
+    return
+  fi
+
   get_this_dir
   info "yuno-debhelper : yunobump is located at $THIS_DIR"
   info "yuno-debhelper : Fetching $THIS_DIR remotes to see if it is up-to-date"
@@ -90,14 +125,15 @@ function check_yunobump_uptodate {
   local BASE=$(git merge-base @ @{u})
 
   if [ "$LOCAL" = "$REMOTE" ]; then
-      info "yuno-debhelper : Up-to-date"
+      info "yuno-debhelper is up-to-date"
   elif [ "$LOCAL" = "$BASE" ]; then
-      error "yuno-debhelper : Need to pull"
-      # TODO : exit if we're here ?
+      error "yuno-debhelper is outdated : Need to pull"
+      info "Exiting. Use -p to override"
+      exit 1
   elif [ "$REMOTE" = "$BASE" ]; then
-      error "yuno-debhelper : Need to push"
+      error "yuno-debhelper has unpushed changes : Need to push"
   else
-      error "yuno-debhelper : Diverged"
+      error "yuno-debhelper has diverged from remote, check your history"
   fi
   popd > /dev/null
 }
@@ -130,13 +166,18 @@ function check_working_dir_clean {
 function check_branch {
   BRANCH=$(git rev-parse --abbrev-ref HEAD)
   info "Current branch is $BRANCH"
-  if [ "$BRANCH" != "test" ] && [ "$BRANCH" != "stable" ]; then
-    error "yunobump is meant to work with branch 'test' or 'stable' only"
+  if [ "$BRANCH" != "testing" ] && [ "$BRANCH" != "stable" ]; then
+    error "yunobump is meant to work with branch 'testing' or 'stable' only"
     exit 1
   fi
 }
 
-function check_workingdir_uptodate {
+function check_remote_for_updates {
+  if [ "$CHECK_CURRENT_REPO_REMOTE" == "false" ]; then
+    info "Skipping check for remote updates, because -q was used"
+    return
+  fi
+  
   # cf http://stackoverflow.com/questions/3258243/git-check-if-pull-needed/
   info "Running 'git remote update'"
   git remote update
@@ -145,16 +186,14 @@ function check_workingdir_uptodate {
   local BASE=$(git merge-base @ @{u})
 
   if [ "$LOCAL" = "$REMOTE" ]; then
-      info "local branch is up-to-date with remote tracking branch"
+      info "Local branch is up-to-date with remote tracking branch"
   elif [ "$LOCAL" = "$BASE" ]; then
-      error "local branch is late. need to pull remote tracking branch"
-      # TODO : add an option to override this ?
+      error "Local branch is not up-to-date. You need to pull remote tracking branch"
       exit 1
   elif [ "$REMOTE" = "$BASE" ]; then
-      info "local branch is ahead of remote tracking branch. need to push"
+      info "Local branch is ahead of remote tracking branch. need to push"
   else
-      error "local and remote branches diverged. check your history !"
-      # TODO : add an option to override this ?
+      error "Local and remote branches diverged. Check your history !"
       exit 1
   fi
 }
@@ -170,20 +209,26 @@ function check_version_validity {
     exit 1
   fi
   
-  # Check that there is no existing tag with this version (for example from another branch)
-  
+  # Check that there is no existing tag with this version. 
+  # Just in case as previous check should avoid it
+  git tag | grep "^debian/$NEW_VERSION$"
+  if [ "$?" == 0 ] ; then
+    error "There is already a tag with version $NEW_VERSION. Check your version number"
+    exit 1
+  fi
 }
 
 function update_changelog {
-  info "Running git-dch"
-  git dch --new-version $NEW_VERSION --ignore-branch --release --distribution=test --force-distribution --urgency=low --git-author --spawn-editor=always --debian-tag="$BRANCH/%(version)s"
+  info "Running git-dch to update debian/changelog"
+  git dch --new-version $NEW_VERSION --ignore-branch --release --distribution=$BRANCH --force-distribution --urgency=low --git-author --spawn-editor=always --debian-tag="debian/%(version)s"
   if [ "$?" != 0 ] ; then
     error "Failed to update debian/changelog"
     exit 1
   fi
 
   info "Committing changelog"
-  # TODO : ask confirmation before continuing ?
+  # TODO : dump changelog diff one last time, and ask confirmation before continuing ?
+  
   git add debian/changelog
   git commit -m "Update changelog for $NEW_VERSION release"
   if [ "$?" != 0 ] ; then
@@ -191,8 +236,8 @@ function update_changelog {
     exit 1
   fi
 
-  info "Applying tag $BRANCH/$NEW_VERSION"
-  git tag $BRANCH/$NEW_VERSION
+  info "Applying tag debian/$NEW_VERSION"
+  git tag "debian/$NEW_VERSION"
   if [ "$?" != 0 ] ; then
     error "Failed to tag $NEW_VERSION"
     exit 1
@@ -207,14 +252,18 @@ function show_diff_to_push {
   git log --oneline --decorate $REMOTE..$LOCAL
 
   info "You can push them now with : \"git push --tags $(git config branch.$BRANCH.remote) $BRANCH:$BRANCH\""
+  
+  # TODO : make it more visible
+  info "WARNING : DO NOT FORGET '--tags' !"
+  
 }
 
-check_args "$@"
+parse_args "$@"
 check_tools_availability
 check_working_dir_clean
 check_yunobump_uptodate
 check_branch
-check_workingdir_uptodate
+check_remote_for_updates
 check_version_validity
 update_changelog
 show_diff_to_push
