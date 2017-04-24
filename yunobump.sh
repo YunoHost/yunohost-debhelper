@@ -99,14 +99,14 @@ function check_tools_availability {
   
   which git-dch > /dev/null
   if [ "$?" != 0 ] ; then
-    error "You need to install git-dch (apt-get install git-buildpackage)";
+    error "You need to install git-dch (apt install git-buildpackage)";
     exit 1
   fi
   info "Checking for git-dch... ok"
 
   which dpkg-parsechangelog > /dev/null
   if [ "$?" != 0 ] ; then
-    error "You need to install dpkg-parsechangelog (apt-get install dpkg-dev)";
+    error "You need to install dpkg-parsechangelog (apt install dpkg-dev)";
     exit 1
   fi
   info "Checking for dpkg-parsechangelog... ok"
