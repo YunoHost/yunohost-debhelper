@@ -1,8 +1,8 @@
-# YunoHost DebHelpers
+# YunoHost DebHelpers
 
 Helpers for YunoHost debian packagers
 
-## Installation
+## Installation
 
 Use under Debian, and be sure to have `git-buildpackage` and `dpkg-dev`
 installed.
@@ -15,6 +15,6 @@ Clone this repository and execute `setup_git_alias.sh`
     ./yunohost-debhelper/setup_git_alias.sh
 
 
-## Usage
+## Usage
 
 *to be completed*
